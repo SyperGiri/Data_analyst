@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Виртуальное окружение
+venv/
+env/
+.venv/
+
+# Базы данных (не храним в git!)
+*.db
+*.sqlite
+*.sqlite3
+
+# Сырые данные (XLSX держим локально, не в git)
+data/*.xlsx
+data/*.csv
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
