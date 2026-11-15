@@ -7,13 +7,15 @@ message_id уникален: это гарантирует идемпотент�
 
 from datetime import date
 
-from sqlalchemy import Date, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, Integer, String, UniqueConstraint, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     pass
 
+# SQLite-движок (файл БД будет создан в корне проекта)
+engine = create_engine("sqlite:///mos_gov.db", echo=False)
 
 class Okrug(Base):
     __tablename__ = "dim_okrug"
