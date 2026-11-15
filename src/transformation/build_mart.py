@@ -1,20 +1,3 @@
-"""
-Построение аналитической витрины mart_okrug_sla.
-
-Витрина агрегирует нормализованные сущности (3НФ) в широкую таблицу
-для BI-слоя (Superset) и визуализации (Matplotlib).
-
-Бизнес-правила расчёта показателей:
-- total_requests: все заявки из fact_request по округу (NULL-округа -> 'Не указан').
-- answered_requests: заявки, по которым есть запись в fact_response.
-- overdue_count: заявки, где response_date > sla_date И sla_date не NULL.
-- overdue_rate_pct: overdue_count / answered_requests * 100 (база - отвеченные).
-- avg_response_days: среднее (response_date - pub_date) по отвеченным.
-
-Нормализация округов: в данных встречается 'Юго-Западный округ' вместо 'ЮЗАО'
-— приводим к каноническому коду через CASE.
-"""
-
 """Построение аналитической витрины mart_okrug_sla."""
 
 import logging
@@ -35,14 +18,19 @@ WITH normalized AS (
         resp.response_date,
         CASE WHEN resp.response_date IS NOT NULL THEN 1 ELSE 0 END AS is_answered,
         CASE
+            -- Просрочка: ответа нет И SLA истёк (используем текущую дату как контрольную)
+            WHEN resp.response_date IS NULL
+                 AND r.sla_date IS NOT NULL
+                 AND r.sla_date < CURRENT_DATE THEN 1
+            -- Или ответ пришёл позже SLA
             WHEN resp.response_date IS NOT NULL
                  AND r.sla_date IS NOT NULL
-                 AND resp.response_date > r.sla_date THEN 1 ELSE 0
+                 AND resp.response_date > r.sla_date THEN 1
+            ELSE 0
         END AS is_overdue,
         CASE
             WHEN resp.response_date IS NOT NULL
-                THEN CAST(julianday(resp.response_date)
-                         - julianday(r.pub_date) AS REAL)
+                THEN CAST(julianday(resp.response_date) - julianday(r.pub_date) AS REAL)
             ELSE NULL
         END AS response_days
     FROM fact_request r
@@ -52,11 +40,11 @@ WITH normalized AS (
 )
 SELECT
     okrug_name,
-    COUNT(*)                                AS total_requests,
-    SUM(is_answered)                        AS answered_requests,
-    SUM(is_overdue)                         AS overdue_count,
-    ROUND(100.0 * SUM(is_overdue) / NULLIF(SUM(is_answered), 0), 2) AS overdue_rate_pct,
-    ROUND(AVG(response_days), 2)            AS avg_response_days
+    COUNT(*)                                    AS total_requests,
+    SUM(is_answered)                            AS answered_requests,
+    SUM(is_overdue)                             AS overdue_count,
+    ROUND(100.0 * SUM(is_overdue) / NULLIF(COUNT(*), 0), 2) AS overdue_rate_pct,
+    ROUND(AVG(response_days), 2)                AS avg_response_days
 FROM normalized
 GROUP BY okrug_name
 ORDER BY overdue_rate_pct DESC;
@@ -66,7 +54,6 @@ ORDER BY overdue_rate_pct DESC;
 def build_mart():
     logger.info("🏗️  Построение витрины mart_okrug_sla...")
     with engine.begin() as conn:
-        # SQLite требует по одному оператору за раз — разделяем
         conn.execute(text("DROP TABLE IF EXISTS mart_okrug_sla"))
         conn.execute(text(MART_SQL))
         count = conn.execute(
