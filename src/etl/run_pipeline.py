@@ -16,6 +16,34 @@ from src.models.database import (
 )
 from src.models.schemas import RawRequest, RawResponse
 
+# Маппинг всех возможных вариантов написания округов к канонической аббревиатуре
+OKRUG_CANONICAL = {
+    "Центральный округ": "ЦАО",
+    "Северный округ": "САО",
+    "Южный округ": "ЮАО",
+    "Восточный округ": "ВАО",
+    "Западный округ": "ЗАО",
+    "Северо-Западный округ": "СЗАО",
+    "Юго-Западный округ": "ЮЗАО",
+    "Северо-Восточный округ": "СВАО",
+    "Юго-Восточный округ": "ЮВАО",
+    "Зеленоградский округ": "ЗелАО",
+    "Новомосковский административный округ": "НАО",
+    "Троицкий административный округ": "ТАО",
+    # Аббревиатуры оставляем как есть
+    "ЦАО": "ЦАО", "САО": "САО", "ЮАО": "ЮАО", "ВАО": "ВАО",
+    "ЗАО": "ЗАО", "СЗАО": "СЗАО", "ЮЗАО": "ЮЗАО", "СВАО": "СВАО",
+    "ЮВАО": "ЮВАО", "ЗелАО": "ЗелАО", "НАО": "НАО", "ТАО": "ТАО",
+}
+
+
+def normalize_okrug(name: str | None) -> str | None:
+    """Приводит название округа к канонической аббревиатуре."""
+    if name is None:
+        return None
+    name = name.strip()
+    return OKRUG_CANONICAL.get(name, name)  # если неизвестно — оставляем как есть
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -161,8 +189,7 @@ def run_etl():
         logger.info(f"✅ Валидно записей заявок: {len(valid_reqs)}")
 
         for req in valid_reqs:
-            okrug_id = get_or_create(session, Okrug, "name", req.get("okrug"))
-
+            okrug_id = get_or_create(session, Okrug, "name", normalize_okrug(req.get("okrug")))
             district_id = None
             if req.get("district") and okrug_id:
                 district_id = get_or_create_district(session, okrug_id, req["district"])
